@@ -28,5 +28,5 @@ A CLI tool that signs commits with NIST-standardized post-quantum algorithm ML-D
 - On-chain storage for decentralized verification
 
 ## Point of Contact
-Your Name – your.email@example.com
-GitHub: @yourusername
+Your Name – sivasathwika.nelluri@gmail.com
+GitHub: @Sivasathwika
