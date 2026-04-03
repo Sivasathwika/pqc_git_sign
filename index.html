@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>pqc-git-sign · PQC signed commits</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif; background-color: #0d1117; color: #c9d1d9; line-height: 1.5; }
+        .header { background-color: #010409; border-bottom: 1px solid #30363d; padding: 16px 0; position: sticky; top: 0; z-index: 100; }
+        .header-inner { max-width: 1280px; margin: 0 auto; padding: 0 16px; display: flex; justify-content: space-between; align-items: center; }
+        .logo { font-size: 24px; font-weight: 600; display: flex; align-items: center; gap: 8px; color: #f0f6fc; }
+        .logo svg { fill: #f0f6fc; width: 32px; height: 32px; }
+        .nav { display: flex; gap: 16px; align-items: center; }
+        .nav a { color: #c9d1d9; text-decoration: none; font-size: 14px; cursor: pointer; }
+        .nav a:hover { color: #58a6ff; }
+        .attacker-toggle { display: flex; align-items: center; gap: 12px; margin-left: 20px; }
+        .toggle-switch { position: relative; display: inline-block; width: 44px; height: 24px; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #30363d; transition: 0.3s; border-radius: 24px; }
+        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: #c9d1d9; transition: 0.3s; border-radius: 50%; }
+        input:checked + .slider { background-color: #da3633; }
+        input:checked + .slider:before { transform: translateX(20px); }
+        .container { max-width: 1280px; margin: 0 auto; padding: 20px 16px; }
+        .breadcrumb { display: flex; gap: 8px; font-size: 14px; margin-bottom: 20px; color: #8b949e; }
+        .repo-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid #30363d; }
+        .repo-title { font-size: 32px; font-weight: 600; color: #f0f6fc; }
+        .btn { padding: 6px 12px; border: 1px solid #30363d; background-color: #21262d; color: #c9d1d9; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: all 0.2s; }
+        .btn:hover { background-color: #30363d; border-color: #8b949e; }
+        .btn-primary { background-color: #238636; color: #ffffff; border-color: #2ea043; }
+        .btn-primary:hover { background-color: #2ea043; }
+        .tabs { display: flex; gap: 0; border-bottom: 1px solid #30363d; margin-bottom: 20px; }
+        .tab { padding: 12px 16px; border: none; background: none; cursor: pointer; font-size: 14px; color: #c9d1d9; border-bottom: 2px solid transparent; transition: all 0.2s; }
+        .tab.active { border-bottom-color: #fd7e14; color: #58a6ff; font-weight: 600; }
+        .tab:hover { color: #58a6ff; }
+        .files-section { background-color: #010409; border: 1px solid #30363d; border-radius: 6px; overflow: hidden; }
+        .file-header { padding: 12px 16px; background-color: #161b22; border-bottom: 1px solid #30363d; font-size: 13px; color: #8b949e; }
+        .file-list { list-style: none; }
+        .file-item { padding: 12px 16px; border-bottom: 1px solid #30363d; display: flex; justify-content: space-between; align-items: center; background: #0d1117; transition: background 0.2s; flex-wrap: wrap; gap: 8px; }
+        .file-item:hover { background-color: #161b22; }
+        .file-name { flex: 1; color: #58a6ff; }
+        .file-msg { flex: 1; color: #8b949e; font-size: 13px; margin: 0 16px; }
+        .file-time { color: #8b949e; font-size: 13px; }
+        .commit-badge { display: inline-flex; align-items: center; gap: 4px; background-color: #2b4b2b; color: #3fb950; padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; border: 1px solid #2ea043; margin-left: 8px; }
+        .commit-badge.unverified { background-color: #5a2a2a; color: #f85149; border-color: #da3633; }
+        .verify-btn { background-color: #2b4b2b; color: #3fb950; border: 1px solid #2ea043; padding: 2px 8px; border-radius: 12px; font-size: 11px; cursor: pointer; }
+        .verify-btn:hover { background-color: #3fb950; color: #0d1117; }
+        .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.7); z-index: 1000; align-items: center; justify-content: center; }
+        .modal.active { display: flex; }
+        .modal-content { background: #0d1117; border: 1px solid #30363d; border-radius: 12px; padding: 24px; max-width: 800px; width: 90%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5); }
+        .modal-header { font-size: 20px; font-weight: 600; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; color: #f0f6fc; }
+        .modal-close { background: none; border: none; font-size: 24px; cursor: pointer; color: #8b949e; }
+        .form-group { margin-bottom: 16px; }
+        .form-label { display: block; font-weight: 500; margin-bottom: 8px; font-size: 14px; color: #c9d1d9; }
+        .form-input, .form-textarea { width: 100%; padding: 8px 12px; border: 1px solid #30363d; background-color: #0d1117; border-radius: 6px; font-family: inherit; font-size: 14px; color: #c9d1d9; transition: border 0.2s; }
+        .form-input:focus, .form-textarea:focus { outline: none; border-color: #58a6ff; box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.1); }
+        .status-log { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 12px; font-size: 12px; font-family: monospace; color: #8b949e; margin-bottom: 16px; max-height: 150px; overflow-y: auto; }
+        .status-line { padding: 2px 0; display: flex; gap: 8px; }
+        .status-success { color: #3fb950; }
+        .status-error { color: #f85149; }
+        .status-pending { color: #d29922; }
+        .action-buttons { display: flex; gap: 8px; justify-content: flex-end; }
+        .branch-display { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 12px; margin-bottom: 16px; display: flex; justify-content: space-between; }
+        .branch-name { color: #58a6ff; font-weight: 600; }
+        .readme-section { background: #010409; border: 1px solid #30363d; border-radius: 6px; padding: 20px; margin-top: 20px; }
+        .readme-title { font-size: 16px; font-weight: 600; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #30363d; color: #f0f6fc; }
+        .code-block { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 12px; font-family: monospace; font-size: 12px; overflow-x: auto; color: #c9d1d9; margin: 12px 0; }
+        .detail-box { background: #161b22; padding: 12px; border-radius: 6px; margin: 12px 0; word-break: break-all; }
+        .hash-compare { background: #1a2a3a; padding: 8px; border-left: 4px solid #3fb950; margin: 8px 0; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-inner">
+            <div class="logo"><svg fill="currentColor" viewBox="0 0 16 16" width="32" height="32"><path d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.39.55 1.04 1.73 1.04 1.48 0 1.7-.97 1.97-1.5.15-.38.42-.335.42.01 0 .27.01 2.3.01 2.96 0 .21-.15.46-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z"/></svg><span>GitHub</span></div>
+            <div class="nav">
+                <a onclick="showTab('commits')">Commits</a>
+                <a onclick="showTab('push')">Push</a>
+                <a onclick="showTab('pull')">Pull</a>
+                <a onclick="showTab('merge')">Merge</a>
+                <div class="attacker-toggle">
+                    <span>🤖 Attacker Mode</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="attackerToggle" onchange="toggleAttackerMode(this.checked)">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="breadcrumb"><span>pqc-git-sign</span></div>
+        <div class="repo-header"><div class="repo-title">pqc-git-sign</div><div class="repo-buttons"><button class="btn" onclick="openModal('commitModal')">+ Commit</button></div></div>
+        <div class="tabs"><button class="tab active" onclick="showTab('commits')">Code</button><button class="tab" onclick="showTab('push')">Push</button><button class="tab" onclick="showTab('pull')">Pull</button><button class="tab" onclick="showTab('merge')">Merge</button></div>
+        <div id="commits-tab" class="tab-content active"><div class="files-section"><div class="file-header"><strong id="commitCount">0 commits</strong></div><ul class="file-list" id="commitList"></ul></div><div class="readme-section"><div class="readme-title">About</div><div class="readme-content"><p><strong>Post-Quantum Cryptography Git Signing</strong></p><p>This repository demonstrates commit signing using ML-DSA-65, a post-quantum cryptographic algorithm.</p><div class="code-block">git log --verify-signature</div></div></div></div>
+        <div id="push-tab" class="tab-content"><div class="commit-section"><div class="commit-header"><div class="commit-title">Push to Remote</div></div><div class="branch-display"><span>Current branch: <span class="branch-name">main</span></span></div><div class="form-group"><label class="form-label">Commits to push:</label><div id="pushCommitsList"></div></div><div class="status-log" id="pushLog"></div><div class="action-buttons"><button class="btn btn-primary" onclick="performPush()">Push Commits</button></div></div></div>
+        <div id="pull-tab" class="tab-content"><div class="commit-section"><div class="commit-header"><div class="commit-title">Pull from Remote</div></div><div class="branch-display"><span>Current branch: <span class="branch-name">main</span></span></div><div class="form-group"><label class="form-label">Remote branch:</label><input type="text" class="form-input" value="origin/main" id="pullBranch"></div><div class="status-log" id="pullLog"></div><div class="action-buttons"><button class="btn btn-primary" onclick="performPull()">Pull Changes</button></div></div></div>
+        <div id="merge-tab" class="tab-content"><div class="commit-section"><div class="commit-header"><div class="commit-title">Merge Branches</div></div><div class="branch-display"><span>Merge into: <span class="branch-name">main</span></span></div><div class="form-group"><label class="form-label">Source branch:</label><input type="text" class="form-input" placeholder="feature-branch" id="mergeBranch"></div><div class="status-log" id="mergeLog"></div><div class="action-buttons"><button class="btn btn-primary" onclick="performMerge()">Merge Branch</button></div></div></div>
+    </div>
+
+    <!-- Modal for verification details -->
+    <div id="verifyModal" class="modal"><div class="modal-content"><div class="modal-header"><span style="color:#3fb950;">🔍 VERIFIED COMMIT</span><button class="modal-close" onclick="closeModal('verifyModal')">×</button></div><div id="verifyDetails"></div><div class="action-buttons"><button class="btn btn-primary" onclick="closeModal('verifyModal')">OK</button></div></div></div>
+    <!-- Commit modal -->
+    <div id="commitModal" class="modal"><div class="modal-content"><div class="modal-header"><span>Create Commit</span><button class="modal-close" onclick="closeModal('commitModal')">×</button></div><div class="form-group"><label class="form-label">Commit message:</label><textarea class="form-textarea" id="commitMsg" placeholder="Brief description of changes..."></textarea></div><div class="form-group"><label class="form-label">Changed files:</label><textarea class="form-textarea" id="commitFiles" placeholder="src/main.py: Updated algorithm&#10;config.py: Fixed settings"></textarea></div><div class="status-log" id="commitLog"></div><div class="action-buttons"><button class="btn" onclick="closeModal('commitModal')">Cancel</button><button class="btn btn-primary" onclick="createCommit()">Sign & Commit</button></div></div></div>
+
+    <script>
+        let commits = [], localCommits = [];
+        async function refreshCommits() { const r = await fetch('/commits'); const all = await r.json(); commits = all.filter(c => !c.date.includes('just now')); localCommits = all.filter(c => c.date.includes('just now')); renderCommits(); }
+        function renderCommits() { const list = document.getElementById('commitList'); const allCommits = [...commits, ...localCommits].reverse(); list.innerHTML = allCommits.map(c => `<li class="file-item"><span class="file-name">${escapeHtml(c.msg)}</span><span class="file-msg">${escapeHtml(c.author)}</span><span class="file-time">${c.date}</span><span class="commit-badge ${c.verified ? '' : 'unverified'}">${c.verified ? '✓ Verified' : '✗ Unverified'}</span><button class="verify-btn" onclick="showVerifyDetails('${c.id}')">🔍 Verify</button></li>`).join(''); document.getElementById('commitCount').textContent = allCommits.length + ' commits'; }
+        async function toggleAttackerMode(enabled) { await fetch('/attacker-mode', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: enabled }) }); alert(`Attacker mode ${enabled ? 'ON' : 'OFF'}. New commits will ${enabled ? 'be automatically tampered (unverified)' : 'remain clean (verified)'}.`); }
+        async function showVerifyDetails(id) { const r = await fetch(`/commit-details/${id}`); const data = await r.json(); if (r.ok) { const verifiedBadge = data.verified ? '<span style="color:#3fb950;">✓ VERIFIED</span>' : '<span style="color:#f85149;">✗ UNVERIFIED</span>'; document.getElementById('verifyDetails').innerHTML = `<div><strong>Commit ID:</strong> <code>${data.id}</code></div><div><strong>Author:</strong> ${escapeHtml(data.author)}</div><div><strong>Date:</strong> ${data.date}</div><div><strong>Message:</strong><div class="detail-box">${escapeHtml(data.msg)}</div></div><div><strong>Files:</strong><div class="detail-box">${escapeHtml(data.files)}</div></div><div class="hash-compare"><strong>Stored hash (signed):</strong><br><code>${data.full_hash}</code></div><div class="hash-compare"><strong>Recomputed hash from current content:</strong><br><code>${data.recomputed_hash}</code></div><div><strong>Cryptographic signature valid?</strong> ${data.crypto_valid ? '✅ Yes' : '❌ No'}</div><div><strong>Content matches hash?</strong> ${data.content_matches ? '✅ Yes' : '❌ No'}</div><div style="margin-top:12px; padding:8px; background:#1a2a1a; border-radius:6px;"><strong>Final status:</strong> ${verifiedBadge}</div>`; openModal('verifyModal'); } else { alert('Error fetching details'); } }
+        function escapeHtml(s) { return s.replace(/[&<>]/g, function(m) { if (m === '&') return '&amp;'; if (m === '<') return '&lt;'; if (m === '>') return '&gt;'; return m; }); }
+        function showTab(n) { document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active')); document.querySelectorAll('.tab').forEach(el => el.classList.remove('active')); document.getElementById(n + '-tab').classList.add('active'); event.target.classList.add('active'); if (n === 'push') renderPushTab(); }
+        function renderPushTab() { const list = document.getElementById('pushCommitsList'); if (localCommits.length === 0) list.innerHTML = '<div style="color:#8b949e; padding:12px;">No local commits to push</div>'; else list.innerHTML = localCommits.map(c => `<div style="padding:12px; background:#161b22; margin-bottom:8px; border-radius:6px;"><strong>${escapeHtml(c.msg)}</strong><div style="font-size:12px; color:#8b949e;">${c.id} • ${c.author}</div></div>`).join(''); }
+        function openModal(id) { document.getElementById(id).classList.add('active'); }
+        function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+        async function createCommit() { const msg = document.getElementById('commitMsg').value, files = document.getElementById('commitFiles').value, log = document.getElementById('commitLog'); if (!msg.trim()) { log.innerHTML = '<div class="status-line"><span class="status-icon status-error">✗</span>Commit message required</div>'; return; } log.innerHTML = '<div class="status-line"><span class="status-icon status-pending">→</span>Signing with ML-DSA-65...</div>'; try { const r = await fetch('/commit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: msg, files: files }) }); const data = await r.json(); if (r.ok) { log.innerHTML = '<div class="status-line"><span class="status-icon status-success">✓</span>Commit signed and verified</div>'; await refreshCommits(); setTimeout(() => closeModal('commitModal'), 1500); } else { log.innerHTML = `<div class="status-line"><span class="status-icon status-error">✗</span>${data.error}</div>`; } } catch(err) { log.innerHTML = `<div class="status-line"><span class="status-icon status-error">✗</span>${err.message}</div>`; } }
+        async function performPush() { const log = document.getElementById('pushLog'); log.innerHTML = '<div class="status-line"><span class="status-icon status-pending">→</span>Pushing...</div>'; try { const r = await fetch('/push', { method: 'POST' }); const data = await r.json(); if (r.ok) { log.innerHTML = '<div class="status-line"><span class="status-icon status-success">✓</span>Push successful</div>'; await refreshCommits(); renderPushTab(); } else { log.innerHTML = `<div class="status-line"><span class="status-icon status-error">✗</span>${data.error}</div>`; } } catch(err) { log.innerHTML = `<div class="status-line"><span class="status-icon status-error">✗</span>${err.message}</div>`; } }
+        async function performPull() { const log = document.getElementById('pullLog'); log.innerHTML = '<div class="status-line"><span class="status-icon status-pending">→</span>Pulling...</div>'; try { const r = await fetch('/pull', { method: 'POST' }); const data = await r.json(); if (r.ok) { log.innerHTML = '<div class="status-line"><span class="status-icon status-success">✓</span>Pull successful</div>'; await refreshCommits(); } else { log.innerHTML = `<div class="status-line"><span class="status-icon status-error">✗</span>${data.error}</div>`; } } catch(err) { log.innerHTML = `<div class="status-line"><span class="status-icon status-error">✗</span>${err.message}</div>`; } }
+        async function performMerge() { const branch = document.getElementById('mergeBranch').value, log = document.getElementById('mergeLog'); if (!branch.trim()) { log.innerHTML = '<div class="status-line"><span class="status-icon status-error">✗</span>Branch name required</div>'; return; } log.innerHTML = `<div class="status-line"><span class="status-icon status-pending">→</span>Merging ${branch}...</div>`; try { const r = await fetch('/merge', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source_branch: branch }) }); const data = await r.json(); if (r.ok) { log.innerHTML = '<div class="status-line"><span class="status-icon status-success">✓</span>Merge successful</div>'; await refreshCommits(); } else { log.innerHTML = `<div class="status-line"><span class="status-icon status-error">✗</span>${data.error}</div>`; } } catch(err) { log.innerHTML = `<div class="status-line"><span class="status-icon status-error">✗</span>${err.message}</div>`; } }
+        refreshCommits();
+    </script>
+</body>
+</html>
