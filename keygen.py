@@ -1,40 +1,17 @@
-<<<<<<< HEAD
 import oqs
 
 def generate_keys():
     sig = oqs.Signature("ML-DSA-65")
-    public_key = sig.generate_keypair()
-    secret_key = sig.export_secret_key()
+    pub = sig.generate_keypair()
+    priv = sig.export_secret_key()
     sig.free()
-    return public_key, secret_key
-
-if __name__ == "__main__":
-    pub, priv = generate_keys()
-    print("Public key (hex):", pub.hex())
-    print("Private key (hex):", priv.hex())
-    # Save to files
+    
     with open("public_key.pem", "wb") as f:
         f.write(pub)
     with open("private_key.pem", "wb") as f:
         f.write(priv)
-=======
-import oqs
-
-def generate_keys():
-    sig = oqs.Signature("ML-DSA-65")
-    public_key = sig.generate_keypair()
-    secret_key = sig.export_secret_key()
-    sig.free()
-    return public_key, secret_key
+    
+    print("✅ Keys generated: private_key.pem / public_key.pem")
 
 if __name__ == "__main__":
-    pub, priv = generate_keys()
-    print("Public key (hex):", pub.hex())
-    print("Private key (hex):", priv.hex())
-    # Save to files
-    with open("public_key.pem", "wb") as f:
-        f.write(pub)
-    with open("private_key.pem", "wb") as f:
-        f.write(priv)
->>>>>>> a411c3e475eeeee2ee3279afa143dab5350fae0d
-    print("Keys saved to public_key.pem and private_key.pem")
+    generate_keys()
