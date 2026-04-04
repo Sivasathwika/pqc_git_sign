@@ -1,42 +1,32 @@
-<<<<<<< HEAD
-name: Verify Commit Signature
+name: Verify PQC Commit Signatures
 
-on: pull_request
-
-jobs:
-  verify:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-      - name: Install liboqs
-        run: |
-          sudo apt update
-          sudo apt install liboqs-dev
-          pip install liboqs-python
-      - name: Run verification demo
-=======
-name: Verify Commit Signature
-
-on: pull_request
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
 
 jobs:
   verify:
     runs-on: ubuntu-latest
+    container:
+      image: openquantumsafe/liboqs:latest
     steps:
       - uses: actions/checkout@v4
-      - name: Setup Python
-        uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
-      - name: Install liboqs
+          fetch-depth: 0
+      - name: Install Python and pip
         run: |
-          sudo apt update
-          sudo apt install liboqs-dev
-          pip install liboqs-python
-      - name: Run verification demo
->>>>>>> a411c3e475eeeee2ee3279afa143dab5350fae0d
-        run: python demo.py
+          apt update
+          apt install -y python3 python3-pip
+          pip3 install liboqs-python
+      - name: Verify commits
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            COMMITS=$(git rev-list ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }})
+          else
+            COMMITS=$(git rev-parse HEAD)
+          fi
+          for commit in $COMMITS; do
+            python3 .github/scripts/verify_commit.py $commit
+          done
