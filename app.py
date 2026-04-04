@@ -1,5 +1,6 @@
 import hashlib
 import oqs
+import os
 from datetime import datetime
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
@@ -50,9 +51,11 @@ def create_commit_object(msg: str, files: str, author: str = "You", tamper: bool
         "is_local": True
     }
     if tamper:
+        # Tamper the commit content after signing (simulate attacker)
         commit['msg'] = commit['msg'] + " [TAMPERED BY ATTACKER]"
         commit['files'] = commit['files'] + "\n# malicious change"
-        commit['verified'] = False
+        # Do NOT change signature or hash – verification will fail due to content mismatch
+        commit['verified'] = False  # mark as unverified immediately
     return commit
 
 @app.route('/')
@@ -112,7 +115,7 @@ def commit():
         return jsonify({"error": "Message required"}), 400
     new = create_commit_object(msg, files, tamper=attacker_mode)
     local_commits.append(new)
-    print(f"[*] New commit created: {new['id']} - {msg} (Attacker: {attacker_mode})")
+    print(f"[*] New commit: {new['id']} (attacker={attacker_mode}, verified={new['verified']})")
     return jsonify(new), 201
 
 @app.route('/push', methods=['POST'])
@@ -121,20 +124,30 @@ def push():
     if not local_commits:
         return jsonify({"message": "No local commits", "pushed_count": 0}), 200
     
+    # Verify each local commit before pushing
+    invalid_commits = []
     for c in local_commits:
         sig = bytes.fromhex(c["signature"])
-        if not verify_commit(bytes.fromhex(c["full_hash"]), sig):
-            return jsonify({"error": f"Invalid signature in {c['id']}"}), 400
+        crypto_valid = verify_commit(bytes.fromhex(c["full_hash"]), sig)
+        recomputed = compute_commit_hash(c['msg'], c['files'], c.get('parent', ''), c['timestamp'])
+        content_matches = (recomputed == c["full_hash"])
+        is_valid = crypto_valid and content_matches
+        if not is_valid:
+            invalid_commits.append(c['id'])
     
-    pushed_commits = []
+    if invalid_commits:
+        return jsonify({
+            "error": f"Push rejected: commits {', '.join(invalid_commits)} are invalid (tampered or corrupted)",
+            "invalid_commits": invalid_commits
+        }), 400
+    
+    # All valid, proceed
+    pushed_count = len(local_commits)
     for c in local_commits:
         remote_commit = c.copy()
         remote_commit["date"] = "2 hours ago"
         remote_commit["is_local"] = False
         commits.append(remote_commit)
-        pushed_commits.append(remote_commit)
-    
-    pushed_count = len(local_commits)
     local_commits = []
     
     print(f"[*] Pushed {pushed_count} commits to remote")
@@ -150,13 +163,8 @@ def pull():
     if not commits:
         return jsonify({"message": "No remote commits to pull", "pulled_count": 0}), 200
     
-    for c in commits:
-        sig = bytes.fromhex(c["signature"])
-        c["verified"] = verify_commit(bytes.fromhex(c["full_hash"]), sig)
-    
     pulled_count = 0
     local_ids = {c["id"] for c in local_commits}
-    
     for c in commits:
         if c["id"] not in local_ids:
             local_commit = c.copy()
@@ -179,7 +187,7 @@ def merge():
         return jsonify({"error": "Branch required"}), 400
     merge_commit = create_commit_object(f"Merge branch '{branch}'", "Merge commit", "Merger", tamper=attacker_mode)
     local_commits.append(merge_commit)
-    print(f"[*] Merged branch '{branch}' -> new commit {merge_commit['id']}")
+    print(f"[*] Merged branch '{branch}' -> new commit {merge_commit['id']} (attacker={attacker_mode})")
     return jsonify({"message": f"Merged '{branch}'", "commit": merge_commit}), 200
 
 @app.route('/local-commits', methods=['GET'])
@@ -203,4 +211,5 @@ if __name__ == '__main__':
         c3["is_local"] = False
         commits.extend([c1, c2, c3])
         print("[*] Loaded 3 verified demo commits (attacker mode OFF)")
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(debug=False, host='0.0.0.0', port=port)
