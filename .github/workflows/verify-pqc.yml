@@ -1,0 +1,47 @@
+name: Verify PQC Commit Signatures
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [main]
+
+jobs:
+  verify-signatures:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install liboqs
+        run: |
+          sudo apt update
+          sudo apt install -y liboqs-dev python3-pip
+          pip3 install liboqs-python
+
+      - name: Verify all commits in PR
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+            HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+            COMMITS=$(git rev-list $BASE_SHA..$HEAD_SHA)
+          else
+            COMMITS=$(git rev-parse HEAD)
+          fi
+
+          FAILED=0
+          for commit in $COMMITS; do
+            python3 .github/scripts/verify_commit_pqc.py $commit
+            if [ $? -ne 0 ]; then
+              FAILED=1
+            fi
+          done
+
+          if [ $FAILED -eq 1 ]; then
+            echo "❌ One or more commits have invalid PQC signatures."
+            exit 1
+          else
+            echo "✅ All commit signatures are valid."
+          fi
