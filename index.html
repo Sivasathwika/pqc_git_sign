@@ -27,9 +27,8 @@
         .repo-title { font-size: 32px; font-weight: 600; color: #f0f6fc; }
         .btn { padding: 6px 12px; border: 1px solid #30363d; background-color: #21262d; color: #c9d1d9; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: all 0.2s; }
         .btn:hover { background-color: #30363d; border-color: #8b949e; }
-        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .btn-primary { background-color: #238636; color: #ffffff; border-color: #2ea043; }
-        .btn-primary:hover:not(:disabled) { background-color: #2ea043; }
+        .btn-primary:hover { background-color: #2ea043; }
         .tabs { display: flex; gap: 0; border-bottom: 1px solid #30363d; margin-bottom: 20px; }
         .tab { padding: 12px 16px; border: none; background: none; cursor: pointer; font-size: 14px; color: #c9d1d9; border-bottom: 2px solid transparent; transition: all 0.2s; }
         .tab.active { border-bottom-color: #fd7e14; color: #58a6ff; font-weight: 600; }
@@ -44,7 +43,6 @@
         .file-time { color: #8b949e; font-size: 13px; }
         .commit-badge { display: inline-flex; align-items: center; gap: 4px; background-color: #2b4b2b; color: #3fb950; padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; border: 1px solid #2ea043; margin-left: 8px; }
         .commit-badge.unverified { background-color: #5a2a2a; color: #f85149; border-color: #da3633; }
-        .commit-badge.local { background-color: #264b7a; color: #79c0ff; border-color: #3b8fd9; }
         .verify-btn { background-color: #2b4b2b; color: #3fb950; border: 1px solid #2ea043; padding: 2px 8px; border-radius: 12px; font-size: 11px; cursor: pointer; }
         .verify-btn:hover { background-color: #3fb950; color: #0d1117; }
         .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.7); z-index: 1000; align-items: center; justify-content: center; }
@@ -106,9 +104,7 @@
         <div id="merge-tab" class="tab-content"><div class="commit-section"><div class="commit-header"><div class="commit-title">Merge Branches</div></div><div class="branch-display"><span>Merge into: <span class="branch-name">main</span></span></div><div class="form-group"><label class="form-label">Source branch:</label><input type="text" class="form-input" placeholder="feature-branch" id="mergeBranch"></div><div class="status-log" id="mergeLog"></div><div class="action-buttons"><button class="btn btn-primary" onclick="performMerge()">Merge Branch</button></div></div></div>
     </div>
 
-    <!-- Modal for verification details -->
     <div id="verifyModal" class="modal"><div class="modal-content"><div class="modal-header"><span style="color:#3fb950;">🔍 VERIFIED COMMIT</span><button class="modal-close" onclick="closeModal('verifyModal')">×</button></div><div id="verifyDetails"></div><div class="action-buttons"><button class="btn btn-primary" onclick="closeModal('verifyModal')">OK</button></div></div></div>
-    <!-- Commit modal -->
     <div id="commitModal" class="modal"><div class="modal-content"><div class="modal-header"><span>Create Commit</span><button class="modal-close" onclick="closeModal('commitModal')">×</button></div><div class="form-group"><label class="form-label">Commit message:</label><textarea class="form-textarea" id="commitMsg" placeholder="Brief description of changes..."></textarea></div><div class="form-group"><label class="form-label">Changed files:</label><textarea class="form-textarea" id="commitFiles" placeholder="src/main.py: Updated algorithm&#10;config.py: Fixed settings"></textarea></div><div class="status-log" id="commitLog"></div><div class="action-buttons"><button class="btn" onclick="closeModal('commitModal')">Cancel</button><button class="btn btn-primary" onclick="createCommit()">Sign & Commit</button></div></div></div>
 
     <script>
@@ -133,9 +129,13 @@
                 return;
             }
             list.innerHTML = allCommits.map(c => {
-                const isBadge = c.date === 'just now' ? 'commit-badge local' : 'commit-badge';
-                const badgeText = c.date === 'just now' ? '📦 Local' : (c.verified ? '✓ Verified' : '✗ Unverified');
-                return `<li class="file-item"><span class="file-name">${escapeHtml(c.msg)}</span><span class="file-msg">${escapeHtml(c.author)}</span><span class="file-time">${c.date}</span><span class="${isBadge}">${badgeText}</span><button class="verify-btn" onclick="showVerifyDetails('${c.id}')">🔍 Verify</button></li>`;
+                let badgeClass = 'commit-badge';
+                let badgeText = '✓ Verified';
+                if (!c.verified) {
+                    badgeClass = 'commit-badge unverified';
+                    badgeText = '✗ Unverified';
+                }
+                return `<li class="file-item"><span class="file-name">${escapeHtml(c.msg)}</span><span class="file-msg">${escapeHtml(c.author)}</span><span class="file-time">${c.date}</span><span class="${badgeClass}">${badgeText}</span><button class="verify-btn" onclick="showVerifyDetails('${c.id}')">🔍 Verify</button></li>`;
             }).join('');
             document.getElementById('commitCount').textContent = allCommits.length + ' commits';
         }
@@ -182,6 +182,16 @@
             document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
             document.getElementById(n + '-tab').classList.add('active');
             event.target.classList.add('active');
+            if (n === 'push') renderPushTab();
+        }
+
+        function renderPushTab() {
+            const list = document.getElementById('pushCommitsList');
+            if (localCommits.length === 0) {
+                list.innerHTML = '<div style="color:#8b949e; padding:12px;">No local commits to push</div>';
+            } else {
+                list.innerHTML = localCommits.map(c => `<div style="padding:12px; background:#161b22; margin-bottom:8px; border-radius:6px;"><strong>${escapeHtml(c.msg)}</strong><div style="font-size:12px; color:#8b949e;">${c.id} • ${c.author}</div></div>`).join('');
+            }
         }
 
         function openModal(id) {
@@ -209,7 +219,11 @@
                 });
                 const data = await r.json();
                 if (r.ok) {
-                    log.innerHTML = '<div class="status-line"><span class="status-success">✓</span>Commit signed and verified</div>';
+                    if (data.verified) {
+                        log.innerHTML = '<div class="status-line"><span class="status-success">✓</span>Commit signed and verified</div>';
+                    } else {
+                        log.innerHTML = '<div class="status-line"><span class="status-error">✗</span>Commit was tampered (attacker mode ON) - Unverified badge shown</div>';
+                    }
                     await refreshCommits();
                     document.getElementById('commitMsg').value = '';
                     document.getElementById('commitFiles').value = '';
@@ -225,22 +239,21 @@
         async function performPush() {
             const log = document.getElementById('pushLog');
             const btn = document.getElementById('pushBtn');
-            
             if (localCommits.length === 0) {
                 log.innerHTML = '<div class="status-line"><span class="status-error">✗</span>No local commits to push</div>';
                 return;
             }
-            
             btn.disabled = true;
             log.innerHTML = '<div class="status-line"><span class="status-pending">→</span>Pushing...</div>';
             try {
                 const r = await fetch('/push', { method: 'POST' });
                 const data = await r.json();
-                if (r.ok) {
+                if (r.ok && data.success) {
                     log.innerHTML = `<div class="status-line"><span class="status-success">✓</span>Push successful - pushed ${data.pushed_count} commits</div>`;
                     await refreshCommits();
+                    renderPushTab();
                 } else {
-                    log.innerHTML = `<div class="status-line"><span class="status-error">✗</span>${data.error}</div>`;
+                    log.innerHTML = `<div class="status-line"><span class="status-error">✗</span>${data.error || 'Push failed'}</div>`;
                 }
             } catch(err) {
                 log.innerHTML = `<div class="status-line"><span class="status-error">✗</span>${err.message}</div>`;
@@ -252,22 +265,16 @@
         async function performPull() {
             const log = document.getElementById('pullLog');
             const btn = document.getElementById('pullBtn');
-            
-            if (remoteCommits.length === 0) {
-                log.innerHTML = '<div class="status-line"><span class="status-error">✗</span>No remote commits to pull</div>';
-                return;
-            }
-            
             btn.disabled = true;
             log.innerHTML = '<div class="status-line"><span class="status-pending">→</span>Pulling...</div>';
             try {
                 const r = await fetch('/pull', { method: 'POST' });
                 const data = await r.json();
-                if (r.ok) {
+                if (r.ok && data.success) {
                     log.innerHTML = `<div class="status-line"><span class="status-success">✓</span>Pull successful - pulled ${data.pulled_count} new commits</div>`;
                     await refreshCommits();
                 } else {
-                    log.innerHTML = `<div class="status-line"><span class="status-error">✗</span>${data.error}</div>`;
+                    log.innerHTML = `<div class="status-line"><span class="status-error">✗</span>${data.error || 'Pull failed'}</div>`;
                 }
             } catch(err) {
                 log.innerHTML = `<div class="status-line"><span class="status-error">✗</span>${err.message}</div>`;
@@ -291,12 +298,12 @@
                     body: JSON.stringify({ source_branch: branch })
                 });
                 const data = await r.json();
-                if (r.ok) {
+                if (r.ok && data.success) {
                     log.innerHTML = '<div class="status-line"><span class="status-success">✓</span>Merge successful</div>';
                     document.getElementById('mergeBranch').value = '';
                     await refreshCommits();
                 } else {
-                    log.innerHTML = `<div class="status-line"><span class="status-error">✗</span>${data.error}</div>`;
+                    log.innerHTML = `<div class="status-line"><span class="status-error">✗</span>${data.error || 'Merge failed'}</div>`;
                 }
             } catch(err) {
                 log.innerHTML = `<div class="status-line"><span class="status-error">✗</span>${err.message}</div>`;
