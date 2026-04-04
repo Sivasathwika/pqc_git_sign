@@ -27,8 +27,9 @@
         .repo-title { font-size: 32px; font-weight: 600; color: #f0f6fc; }
         .btn { padding: 6px 12px; border: 1px solid #30363d; background-color: #21262d; color: #c9d1d9; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: all 0.2s; }
         .btn:hover { background-color: #30363d; border-color: #8b949e; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .btn-primary { background-color: #238636; color: #ffffff; border-color: #2ea043; }
-        .btn-primary:hover { background-color: #2ea043; }
+        .btn-primary:hover:not(:disabled) { background-color: #2ea043; }
         .tabs { display: flex; gap: 0; border-bottom: 1px solid #30363d; margin-bottom: 20px; }
         .tab { padding: 12px 16px; border: none; background: none; cursor: pointer; font-size: 14px; color: #c9d1d9; border-bottom: 2px solid transparent; transition: all 0.2s; }
         .tab.active { border-bottom-color: #fd7e14; color: #58a6ff; font-weight: 600; }
@@ -43,6 +44,7 @@
         .file-time { color: #8b949e; font-size: 13px; }
         .commit-badge { display: inline-flex; align-items: center; gap: 4px; background-color: #2b4b2b; color: #3fb950; padding: 4px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; border: 1px solid #2ea043; margin-left: 8px; }
         .commit-badge.unverified { background-color: #5a2a2a; color: #f85149; border-color: #da3633; }
+        .commit-badge.local { background-color: #264b7a; color: #79c0ff; border-color: #3b8fd9; }
         .verify-btn { background-color: #2b4b2b; color: #3fb950; border: 1px solid #2ea043; padding: 2px 8px; border-radius: 12px; font-size: 11px; cursor: pointer; }
         .verify-btn:hover { background-color: #3fb950; color: #0d1117; }
         .modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.7); z-index: 1000; align-items: center; justify-content: center; }
@@ -67,10 +69,11 @@
         .code-block { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 12px; font-family: monospace; font-size: 12px; overflow-x: auto; color: #c9d1d9; margin: 12px 0; }
         .detail-box { background: #161b22; padding: 12px; border-radius: 6px; margin: 12px 0; word-break: break-all; }
         .hash-compare { background: #1a2a3a; padding: 8px; border-left: 4px solid #3fb950; margin: 8px 0; }
-        .invalid-compare { border-left-color: #f85149; }
-        .commit-list-detail { margin: 8px 0; padding: 8px; background: #0d1117; border: 1px solid #30363d; border-radius: 6px; }
-        .commit-status-valid { color: #3fb950; }
-        .commit-status-invalid { color: #f85149; }
+        .commits-stats { display: flex; gap: 16px; margin-bottom: 16px; }
+        .stat-box { background: #161b22; padding: 12px; border-radius: 6px; border-left: 4px solid #3b8fd9; flex: 1; }
+        .stat-label { font-size: 12px; color: #8b949e; }
+        .stat-value { font-size: 20px; font-weight: 600; color: #79c0ff; }
+        .empty-state { color: #8b949e; padding: 24px; text-align: center; }
     </style>
 </head>
 <body>
@@ -98,89 +101,208 @@
         <div class="repo-header"><div class="repo-title">pqc-git-sign</div><div class="repo-buttons"><button class="btn" onclick="openModal('commitModal')">+ Commit</button></div></div>
         <div class="tabs"><button class="tab active" onclick="showTab('commits')">Code</button><button class="tab" onclick="showTab('push')">Push</button><button class="tab" onclick="showTab('pull')">Pull</button><button class="tab" onclick="showTab('merge')">Merge</button></div>
         <div id="commits-tab" class="tab-content active"><div class="files-section"><div class="file-header"><strong id="commitCount">0 commits</strong></div><ul class="file-list" id="commitList"></ul></div><div class="readme-section"><div class="readme-title">About</div><div class="readme-content"><p><strong>Post-Quantum Cryptography Git Signing</strong></p><p>This repository demonstrates commit signing using ML-DSA-65, a post-quantum cryptographic algorithm.</p><div class="code-block">git log --verify-signature</div></div></div></div>
-        <div id="push-tab" class="tab-content"><div class="commit-section"><div class="commit-header"><div class="commit-title">Push to Remote</div></div><div class="branch-display"><span>Current branch: <span class="branch-name">main</span></span></div><div class="form-group"><label class="form-label">Commits to push:</label><div id="pushCommitsList"></div></div><div class="action-buttons"><button class="btn btn-primary" onclick="performPush()">Push Commits</button></div></div></div>
-        <div id="pull-tab" class="tab-content"><div class="commit-section"><div class="commit-header"><div class="commit-title">Pull from Remote</div></div><div class="branch-display"><span>Current branch: <span class="branch-name">main</span></span></div><div class="action-buttons"><button class="btn btn-primary" onclick="performPull()">Pull Changes</button></div></div></div>
-        <div id="merge-tab" class="tab-content"><div class="commit-section"><div class="commit-header"><div class="commit-title">Merge Branches</div></div><div class="branch-display"><span>Merge into: <span class="branch-name">main</span></span></div><div class="form-group"><label class="form-label">Source branch:</label><input type="text" class="form-input" placeholder="feature-branch" id="mergeBranch"></div><div class="action-buttons"><button class="btn btn-primary" onclick="performMerge()">Merge Branch</button></div></div></div>
+        <div id="push-tab" class="tab-content"><div class="commit-section"><div class="commit-header"><div class="commit-title">Push to Remote</div></div><div class="branch-display"><span>Current branch: <span class="branch-name">main</span></span></div><div class="commits-stats"><div class="stat-box"><div class="stat-label">Local commits</div><div class="stat-value" id="pushLocalCount">0</div></div><div class="stat-box" style="border-left-color: #3fb950;"><div class="stat-label">Remote commits</div><div class="stat-value" id="pushRemoteCount" style="color: #3fb950;">0</div></div></div><div class="form-group"><label class="form-label">Commits to push:</label><div id="pushCommitsList"></div></div><div class="status-log" id="pushLog"></div><div class="action-buttons"><button class="btn btn-primary" id="pushBtn" onclick="performPush()">Push Commits</button></div></div></div>
+        <div id="pull-tab" class="tab-content"><div class="commit-section"><div class="commit-header"><div class="commit-title">Pull from Remote</div></div><div class="branch-display"><span>Current branch: <span class="branch-name">main</span></span></div><div class="commits-stats"><div class="stat-box" style="border-left-color: #3fb950;"><div class="stat-label">Remote commits</div><div class="stat-value" id="pullRemoteCount" style="color: #3fb950;">0</div></div><div class="stat-box"><div class="stat-label">Local commits</div><div class="stat-value" id="pullLocalCount">0</div></div></div><div class="form-group"><label class="form-label">Remote branch:</label><input type="text" class="form-input" value="origin/main" id="pullBranch"></div><div class="status-log" id="pullLog"></div><div class="action-buttons"><button class="btn btn-primary" id="pullBtn" onclick="performPull()">Pull Changes</button></div></div></div>
+        <div id="merge-tab" class="tab-content"><div class="commit-section"><div class="commit-header"><div class="commit-title">Merge Branches</div></div><div class="branch-display"><span>Merge into: <span class="branch-name">main</span></span></div><div class="form-group"><label class="form-label">Source branch:</label><input type="text" class="form-input" placeholder="feature-branch" id="mergeBranch"></div><div class="status-log" id="mergeLog"></div><div class="action-buttons"><button class="btn btn-primary" onclick="performMerge()">Merge Branch</button></div></div></div>
     </div>
 
+    <!-- Modal for verification details -->
     <div id="verifyModal" class="modal"><div class="modal-content"><div class="modal-header"><span style="color:#3fb950;">🔍 VERIFIED COMMIT</span><button class="modal-close" onclick="closeModal('verifyModal')">×</button></div><div id="verifyDetails"></div><div class="action-buttons"><button class="btn btn-primary" onclick="closeModal('verifyModal')">OK</button></div></div></div>
-    <div id="pushModal" class="modal"><div class="modal-content"><div class="modal-header" id="pushModalHeader"><span>📤 PUSH RESULT</span><button class="modal-close" onclick="closeModal('pushModal')">×</button></div><div id="pushDetails"></div><div class="action-buttons"><button class="btn btn-primary" onclick="closeModal('pushModal')">OK</button></div></div></div>
-    <div id="pullModal" class="modal"><div class="modal-content"><div class="modal-header" id="pullModalHeader"><span>📥 PULL RESULT</span><button class="modal-close" onclick="closeModal('pullModal')">×</button></div><div id="pullDetails"></div><div class="action-buttons"><button class="btn btn-primary" onclick="closeModal('pullModal')">OK</button></div></div></div>
-    <div id="mergeModal" class="modal"><div class="modal-content"><div class="modal-header" id="mergeModalHeader"><span>🔀 MERGE RESULT</span><button class="modal-close" onclick="closeModal('mergeModal')">×</button></div><div id="mergeDetails"></div><div class="action-buttons"><button class="btn btn-primary" onclick="closeModal('mergeModal')">OK</button></div></div></div>
+    <!-- Commit modal -->
     <div id="commitModal" class="modal"><div class="modal-content"><div class="modal-header"><span>Create Commit</span><button class="modal-close" onclick="closeModal('commitModal')">×</button></div><div class="form-group"><label class="form-label">Commit message:</label><textarea class="form-textarea" id="commitMsg" placeholder="Brief description of changes..."></textarea></div><div class="form-group"><label class="form-label">Changed files:</label><textarea class="form-textarea" id="commitFiles" placeholder="src/main.py: Updated algorithm&#10;config.py: Fixed settings"></textarea></div><div class="status-log" id="commitLog"></div><div class="action-buttons"><button class="btn" onclick="closeModal('commitModal')">Cancel</button><button class="btn btn-primary" onclick="createCommit()">Sign & Commit</button></div></div></div>
 
     <script>
-        let commits = [], localCommits = [];
-        async function refreshCommits() { const r = await fetch('/commits'); const all = await r.json(); commits = all.filter(c => !c.date.includes('just now')); localCommits = all.filter(c => c.date.includes('just now')); renderCommits(); renderPushTab(); }
-        function renderCommits() { const list = document.getElementById('commitList'); const allCommits = [...commits, ...localCommits].reverse(); list.innerHTML = allCommits.map(c => `<li class="file-item"><span class="file-name">${escapeHtml(c.msg)}</span><span class="file-msg">${escapeHtml(c.author)}</span><span class="file-time">${c.date}</span><span class="commit-badge ${c.verified ? '' : 'unverified'}">${c.verified ? '✓ Verified' : '✗ Unverified'}</span><button class="verify-btn" onclick="showVerifyDetails('${c.id}')">🔍 Verify</button></li>`).join(''); document.getElementById('commitCount').textContent = allCommits.length + ' commits'; }
-        function renderPushTab() { const list = document.getElementById('pushCommitsList'); if (localCommits.length === 0) list.innerHTML = '<div style="color:#8b949e; padding:12px;">No local commits to push</div>'; else list.innerHTML = localCommits.map(c => `<div style="padding:12px; background:#161b22; margin-bottom:8px; border-radius:6px;"><strong>${escapeHtml(c.msg)}</strong><div style="font-size:12px; color:#8b949e;">${c.id} • ${c.author}</div></div>`).join(''); }
-        async function toggleAttackerMode(enabled) { await fetch('/attacker-mode', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: enabled }) }); alert(`Attacker mode ${enabled ? 'ON' : 'OFF'}. New commits will ${enabled ? 'be automatically tampered (unverified)' : 'remain clean (verified)'}.`); }
-        async function showVerifyDetails(id) { const r = await fetch(`/commit-details/${id}`); const data = await r.json(); if (r.ok) { const verifiedBadge = data.verified ? '<span style="color:#3fb950;">✓ VERIFIED</span>' : '<span style="color:#f85149;">✗ UNVERIFIED</span>'; document.getElementById('verifyDetails').innerHTML = `<div><strong>Commit ID:</strong> <code>${data.id}</code></div><div><strong>Author:</strong> ${escapeHtml(data.author)}</div><div><strong>Date:</strong> ${data.date}</div><div><strong>Message:</strong><div class="detail-box">${escapeHtml(data.msg)}</div></div><div><strong>Files:</strong><div class="detail-box">${escapeHtml(data.files)}</div></div><div class="hash-compare"><strong>Stored hash (signed):</strong><br><code>${data.full_hash}</code></div><div class="hash-compare"><strong>Recomputed hash from current content:</strong><br><code>${data.recomputed_hash}</code></div><div><strong>Cryptographic signature valid?</strong> ${data.crypto_valid ? '✅ Yes' : '❌ No'}</div><div><strong>Content matches hash?</strong> ${data.content_matches ? '✅ Yes' : '❌ No'}</div><div style="margin-top:12px; padding:8px; background:#1a2a1a; border-radius:6px;"><strong>Final status:</strong> ${verifiedBadge}</div>`; openModal('verifyModal'); } else { alert('Error fetching details'); } }
-        async function performPush() {
-            const r = await fetch('/push', { method: 'POST' });
+        let localCommits = [];
+        let remoteCommits = [];
+
+        async function refreshCommits() {
+            const r = await fetch('/commits');
+            const all = await r.json();
+            localCommits = all.filter(c => c.date === 'just now');
+            remoteCommits = all.filter(c => c.date !== 'just now');
+            renderCommits();
+            updateTabStats();
+        }
+
+        function renderCommits() {
+            const list = document.getElementById('commitList');
+            const allCommits = [...remoteCommits, ...localCommits].reverse();
+            if (allCommits.length === 0) {
+                list.innerHTML = '<div class="empty-state">No commits yet</div>';
+                document.getElementById('commitCount').textContent = '0 commits';
+                return;
+            }
+            list.innerHTML = allCommits.map(c => {
+                const isBadge = c.date === 'just now' ? 'commit-badge local' : 'commit-badge';
+                const badgeText = c.date === 'just now' ? '📦 Local' : (c.verified ? '✓ Verified' : '✗ Unverified');
+                return `<li class="file-item"><span class="file-name">${escapeHtml(c.msg)}</span><span class="file-msg">${escapeHtml(c.author)}</span><span class="file-time">${c.date}</span><span class="${isBadge}">${badgeText}</span><button class="verify-btn" onclick="showVerifyDetails('${c.id}')">🔍 Verify</button></li>`;
+            }).join('');
+            document.getElementById('commitCount').textContent = allCommits.length + ' commits';
+        }
+
+        function updateTabStats() {
+            document.getElementById('pushLocalCount').textContent = localCommits.length;
+            document.getElementById('pushRemoteCount').textContent = remoteCommits.length;
+            document.getElementById('pullRemoteCount').textContent = remoteCommits.length;
+            document.getElementById('pullLocalCount').textContent = localCommits.length;
+        }
+
+        async function toggleAttackerMode(enabled) {
+            await fetch('/attacker-mode', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ enabled: enabled })
+            });
+            alert(`Attacker mode ${enabled ? 'ON' : 'OFF'}. New commits will ${enabled ? 'be automatically tampered (unverified)' : 'remain clean (verified)'}.`);
+        }
+
+        async function showVerifyDetails(id) {
+            const r = await fetch(`/commit-details/${id}`);
             const data = await r.json();
-            const header = document.getElementById('pushModalHeader');
-            const details = document.getElementById('pushDetails');
-            if (data.success) {
-                header.innerHTML = '<span style="color:#3fb950;">✅ PUSH SUCCESSFUL</span><button class="modal-close" onclick="closeModal(\'pushModal\')">×</button>';
-                let commitsHtml = '<div><strong>Pushed commits:</strong></div>';
-                data.pushed.forEach(c => { commitsHtml += `<div class="commit-list-detail"><span class="commit-status-valid">✅ ${c.id}</span> - ${escapeHtml(c.msg)}</div>`; });
-                details.innerHTML = `<div>${data.message}</div>${commitsHtml}`;
-                await refreshCommits();
+            if (r.ok) {
+                const verifiedBadge = data.verified ? '<span style="color:#3fb950;">✓ VERIFIED</span>' : '<span style="color:#f85149;">✗ UNVERIFIED</span>';
+                document.getElementById('verifyDetails').innerHTML = `<div><strong>Commit ID:</strong> <code>${data.id}</code></div><div><strong>Author:</strong> ${escapeHtml(data.author)}</div><div><strong>Date:</strong> ${data.date}</div><div><strong>Message:</strong><div class="detail-box">${escapeHtml(data.msg)}</div></div><div><strong>Files:</strong><div class="detail-box">${escapeHtml(data.files)}</div></div><div class="hash-compare"><strong>Stored hash (signed):</strong><br><code>${data.full_hash}</code></div><div class="hash-compare"><strong>Recomputed hash from current content:</strong><br><code>${data.recomputed_hash}</code></div><div><strong>Cryptographic signature valid?</strong> ${data.crypto_valid ? '✅ Yes' : '❌ No'}</div><div><strong>Content matches hash?</strong> ${data.content_matches ? '✅ Yes' : '❌ No'}</div><div style="margin-top:12px; padding:8px; background:#1a2a1a; border-radius:6px;"><strong>Final status:</strong> ${verifiedBadge}</div>`;
+                openModal('verifyModal');
             } else {
-                header.innerHTML = '<span style="color:#f85149;">❌ PUSH REJECTED</span><button class="modal-close" onclick="closeModal(\'pushModal\')">×</button>';
-                let failedHtml = '<div><strong>Failed commits:</strong></div>';
-                data.failed.forEach(c => { failedHtml += `<div class="commit-list-detail"><span class="commit-status-invalid">❌ ${c.id}</span> - ${escapeHtml(c.msg)}<br><span style="color:#f85149;">Reason: ${c.reason}</span></div>`; });
-                if (data.succeeded && data.succeeded.length) {
-                    let succHtml = '<div><strong>Succeeded commits (not pushed due to failure):</strong></div>';
-                    data.succeeded.forEach(c => { succHtml += `<div class="commit-list-detail"><span class="commit-status-valid">✅ ${c.id}</span> - ${escapeHtml(c.msg)}</div>`; });
-                    failedHtml += succHtml;
+                alert('Error fetching details');
+            }
+        }
+
+        function escapeHtml(s) {
+            return s.replace(/[&<>]/g, function(m) {
+                if (m === '&') return '&amp;';
+                if (m === '<') return '&lt;';
+                if (m === '>') return '&gt;';
+                return m;
+            });
+        }
+
+        function showTab(n) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+            document.getElementById(n + '-tab').classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        function openModal(id) {
+            document.getElementById(id).classList.add('active');
+        }
+
+        function closeModal(id) {
+            document.getElementById(id).classList.remove('active');
+        }
+
+        async function createCommit() {
+            const msg = document.getElementById('commitMsg').value;
+            const files = document.getElementById('commitFiles').value;
+            const log = document.getElementById('commitLog');
+            if (!msg.trim()) {
+                log.innerHTML = '<div class="status-line"><span class="status-error">✗</span>Commit message required</div>';
+                return;
+            }
+            log.innerHTML = '<div class="status-line"><span class="status-pending">→</span>Signing with ML-DSA-65...</div>';
+            try {
+                const r = await fetch('/commit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: msg, files: files })
+                });
+                const data = await r.json();
+                if (r.ok) {
+                    log.innerHTML = '<div class="status-line"><span class="status-success">✓</span>Commit signed and verified</div>';
+                    await refreshCommits();
+                    document.getElementById('commitMsg').value = '';
+                    document.getElementById('commitFiles').value = '';
+                    setTimeout(() => closeModal('commitModal'), 1500);
+                } else {
+                    log.innerHTML = `<div class="status-line"><span class="status-error">✗</span>${data.error}</div>`;
                 }
-                details.innerHTML = `<div>${data.message}</div>${failedHtml}`;
+            } catch(err) {
+                log.innerHTML = `<div class="status-line"><span class="status-error">✗</span>${err.message}</div>`;
             }
-            openModal('pushModal');
         }
+
+        async function performPush() {
+            const log = document.getElementById('pushLog');
+            const btn = document.getElementById('pushBtn');
+            
+            if (localCommits.length === 0) {
+                log.innerHTML = '<div class="status-line"><span class="status-error">✗</span>No local commits to push</div>';
+                return;
+            }
+            
+            btn.disabled = true;
+            log.innerHTML = '<div class="status-line"><span class="status-pending">→</span>Pushing...</div>';
+            try {
+                const r = await fetch('/push', { method: 'POST' });
+                const data = await r.json();
+                if (r.ok) {
+                    log.innerHTML = `<div class="status-line"><span class="status-success">✓</span>Push successful - pushed ${data.pushed_count} commits</div>`;
+                    await refreshCommits();
+                } else {
+                    log.innerHTML = `<div class="status-line"><span class="status-error">✗</span>${data.error}</div>`;
+                }
+            } catch(err) {
+                log.innerHTML = `<div class="status-line"><span class="status-error">✗</span>${err.message}</div>`;
+            } finally {
+                btn.disabled = false;
+            }
+        }
+
         async function performPull() {
-            const r = await fetch('/pull', { method: 'POST' });
-            const data = await r.json();
-            const header = document.getElementById('pullModalHeader');
-            const details = document.getElementById('pullDetails');
-            if (data.success) {
-                header.innerHTML = '<span style="color:#3fb950;">✅ PULL SUCCESSFUL</span><button class="modal-close" onclick="closeModal(\'pullModal\')">×</button>';
-                let commitsHtml = '<div><strong>Pulled commits:</strong></div>';
-                data.commits.forEach(c => { commitsHtml += `<div class="commit-list-detail"><span class="commit-status-valid">✅ ${c.id}</span> - ${escapeHtml(c.msg)}</div>`; });
-                details.innerHTML = `<div>${data.message}</div>${commitsHtml}`;
-                await refreshCommits();
-            } else {
-                header.innerHTML = '<span style="color:#f85149;">❌ PULL FAILED</span><button class="modal-close" onclick="closeModal(\'pullModal\')">×</button>';
-                let commitsHtml = '<div><strong>Invalid fetched commits:</strong></div>';
-                data.commits.forEach(c => { commitsHtml += `<div class="commit-list-detail"><span class="commit-status-invalid">❌ ${c.id}</span> - ${escapeHtml(c.msg)}<br><span style="color:#f85149;">Reason: ${c.reason}</span></div>`; });
-                details.innerHTML = `<div>${data.message}</div>${commitsHtml}`;
+            const log = document.getElementById('pullLog');
+            const btn = document.getElementById('pullBtn');
+            
+            if (remoteCommits.length === 0) {
+                log.innerHTML = '<div class="status-line"><span class="status-error">✗</span>No remote commits to pull</div>';
+                return;
             }
-            openModal('pullModal');
+            
+            btn.disabled = true;
+            log.innerHTML = '<div class="status-line"><span class="status-pending">→</span>Pulling...</div>';
+            try {
+                const r = await fetch('/pull', { method: 'POST' });
+                const data = await r.json();
+                if (r.ok) {
+                    log.innerHTML = `<div class="status-line"><span class="status-success">✓</span>Pull successful - pulled ${data.pulled_count} new commits</div>`;
+                    await refreshCommits();
+                } else {
+                    log.innerHTML = `<div class="status-line"><span class="status-error">✗</span>${data.error}</div>`;
+                }
+            } catch(err) {
+                log.innerHTML = `<div class="status-line"><span class="status-error">✗</span>${err.message}</div>`;
+            } finally {
+                btn.disabled = false;
+            }
         }
+
         async function performMerge() {
             const branch = document.getElementById('mergeBranch').value;
-            if (!branch.trim()) { alert("Branch name required"); return; }
-            const r = await fetch('/merge', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source_branch: branch }) });
-            const data = await r.json();
-            const header = document.getElementById('mergeModalHeader');
-            const details = document.getElementById('mergeDetails');
-            if (data.success) {
-                header.innerHTML = '<span style="color:#3fb950;">✅ MERGE SUCCESSFUL</span><button class="modal-close" onclick="closeModal(\'mergeModal\')">×</button>';
-                details.innerHTML = `<div>${data.message}</div><div class="commit-list-detail"><strong>Merge commit:</strong> ${data.commit.id} - ${escapeHtml(data.commit.msg)}<br><span class="commit-status-valid">✅ Verified</span></div>`;
-                await refreshCommits();
-            } else {
-                header.innerHTML = '<span style="color:#f85149;">❌ MERGE FAILED</span><button class="modal-close" onclick="closeModal(\'mergeModal\')">×</button>';
-                details.innerHTML = `<div>${data.message}</div><div class="commit-list-detail"><strong>Failed commit:</strong> ${data.commit.id} - ${escapeHtml(data.commit.msg)}<br><span style="color:#f85149;">Reason: ${data.reason}</span></div>`;
+            const log = document.getElementById('mergeLog');
+            if (!branch.trim()) {
+                log.innerHTML = '<div class="status-line"><span class="status-error">✗</span>Branch name required</div>';
+                return;
             }
-            openModal('mergeModal');
+            log.innerHTML = `<div class="status-line"><span class="status-pending">→</span>Merging ${escapeHtml(branch)}...</div>`;
+            try {
+                const r = await fetch('/merge', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ source_branch: branch })
+                });
+                const data = await r.json();
+                if (r.ok) {
+                    log.innerHTML = '<div class="status-line"><span class="status-success">✓</span>Merge successful</div>';
+                    document.getElementById('mergeBranch').value = '';
+                    await refreshCommits();
+                } else {
+                    log.innerHTML = `<div class="status-line"><span class="status-error">✗</span>${data.error}</div>`;
+                }
+            } catch(err) {
+                log.innerHTML = `<div class="status-line"><span class="status-error">✗</span>${err.message}</div>`;
+            }
         }
-        function escapeHtml(s) { return s.replace(/[&<>]/g, function(m) { if (m === '&') return '&amp;'; if (m === '<') return '&lt;'; if (m === '>') return '&gt;'; return m; }); }
-        function showTab(n) { document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active')); document.querySelectorAll('.tab').forEach(el => el.classList.remove('active')); document.getElementById(n + '-tab').classList.add('active'); event.target.classList.add('active'); if (n === 'push') renderPushTab(); }
-        function openModal(id) { document.getElementById(id).classList.add('active'); }
-        function closeModal(id) { document.getElementById(id).classList.remove('active'); }
-        async function createCommit() { const msg = document.getElementById('commitMsg').value, files = document.getElementById('commitFiles').value, log = document.getElementById('commitLog'); if (!msg.trim()) { log.innerHTML = '<div class="status-line"><span class="status-icon status-error">✗</span>Commit message required</div>'; return; } log.innerHTML = '<div class="status-line"><span class="status-icon status-pending">→</span>Signing with ML-DSA-65...</div>'; try { const r = await fetch('/commit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: msg, files: files }) }); const data = await r.json(); if (r.ok) { log.innerHTML = '<div class="status-line"><span class="status-icon status-success">✓</span>Commit signed and verified</div>'; await refreshCommits(); setTimeout(() => closeModal('commitModal'), 1500); } else { log.innerHTML = `<div class="status-line"><span class="status-icon status-error">✗</span>${data.error}</div>`; } } catch(err) { log.innerHTML = `<div class="status-line"><span class="status-icon status-error">✗</span>${err.message}</div>`; } }
+
         refreshCommits();
     </script>
 </body>
