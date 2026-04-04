@@ -22,7 +22,7 @@ def verify_commit(commit_hash: bytes, signature: bytes) -> bool:
 
 commits = []
 local_commits = []
-attacker_mode = False   # global toggle
+attacker_mode = False
 
 def compute_commit_hash(msg: str, files: str, parent_hash: str, timestamp: str) -> str:
     content = f"message:{msg}\nfiles:{files}\nparent:{parent_hash}\ntime:{timestamp}"
@@ -121,13 +121,11 @@ def push():
     if not local_commits:
         return jsonify({"message": "No local commits", "pushed_count": 0}), 200
     
-    # Verify all local commits before pushing
     for c in local_commits:
         sig = bytes.fromhex(c["signature"])
         if not verify_commit(bytes.fromhex(c["full_hash"]), sig):
             return jsonify({"error": f"Invalid signature in {c['id']}"}), 400
     
-    # Push local commits to remote and mark them as remote
     pushed_commits = []
     for c in local_commits:
         remote_commit = c.copy()
@@ -152,12 +150,10 @@ def pull():
     if not commits:
         return jsonify({"message": "No remote commits to pull", "pulled_count": 0}), 200
     
-    # Verify all remote commits
     for c in commits:
         sig = bytes.fromhex(c["signature"])
         c["verified"] = verify_commit(bytes.fromhex(c["full_hash"]), sig)
     
-    # Merge remote commits into local that don't already exist
     pulled_count = 0
     local_ids = {c["id"] for c in local_commits}
     
