@@ -2,24 +2,45 @@ name: Verify PQC Commit Signatures
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, master ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, master ]
 
 jobs:
   verify:
     runs-on: ubuntu-latest
-    container:
-      image: openquantumsafe/liboqs:latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Install Python and pip
+
+      - name: Install system dependencies
         run: |
-          apt update
-          apt install -y python3 python3-pip
-          pip3 install liboqs-python
+          sudo apt update
+          sudo apt install -y cmake ninja-build gcc g++ libssl-dev python3 python3-pip git
+
+      - name: Build and install liboqs from source
+        run: |
+          git clone --depth 1 https://github.com/open-quantum-safe/liboqs.git
+          cd liboqs
+          mkdir build && cd build
+          cmake -GNinja -DBUILD_SHARED_LIBS=ON ..
+          ninja
+          sudo ninja install
+          sudo ldconfig
+          cd ../..
+
+      - name: Install Python dependencies
+        run: pip3 install liboqs-python
+
+      - name: Verify public key exists
+        run: |
+          if [ ! -f ".github/public_key.pem" ]; then
+            echo "❌ ERROR: .github/public_key.pem not found!"
+            exit 1
+          fi
+          echo "✅ Public key found"
+
       - name: Verify commits
         run: |
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
@@ -27,6 +48,22 @@ jobs:
           else
             COMMITS=$(git rev-parse HEAD)
           fi
+
+          if [ -z "$COMMITS" ]; then
+            echo "⚠️  No commits to verify"
+            exit 0
+          fi
+
+          FAILED=0
           for commit in $COMMITS; do
-            python3 .github/scripts/verify_commit.py $commit
+            echo "Checking commit: $commit"
+            python3 .github/scripts/verify_commit.py "$commit" || FAILED=$((FAILED + 1))
           done
+
+          if [ $FAILED -gt 0 ]; then
+            echo "❌ $FAILED commit(s) failed verification"
+            exit 1
+          else
+            echo "✅ All commits verified successfully"
+            exit 0
+          fi
