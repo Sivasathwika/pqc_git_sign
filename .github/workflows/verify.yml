@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 name: Verify Commit Signature
 
 on: pull_request
@@ -17,4 +18,25 @@ jobs:
           sudo apt install liboqs-dev
           pip install liboqs-python
       - name: Run verification demo
+=======
+name: Verify Commit Signature
+
+on: pull_request
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install liboqs
+        run: |
+          sudo apt update
+          sudo apt install liboqs-dev
+          pip install liboqs-python
+      - name: Run verification demo
+>>>>>>> a411c3e475eeeee2ee3279afa143dab5350fae0d
         run: python demo.py

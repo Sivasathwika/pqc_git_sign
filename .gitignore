@@ -3,3 +3,8 @@ signature.sig
 venv/
 liboqs/
 __pycache__/
+<<<<<<< HEAD
+=======
+build/
+vcpkg/
+>>>>>>> a411c3e475eeeee2ee3279afa143dab5350fae0d
