@@ -256,7 +256,7 @@
                 const details = document.getElementById('pushDetails');
                 if (data.success) {
                     header.innerHTML = '<span style="color:#3fb950;">✅ PUSH SUCCESSFUL</span><button class="modal-close" onclick="closeModal(\'pushModal\')">×</button>';
-                    details.innerHTML = `<div>${data.message}</div><div>Pushed ${data.pushed_count} commits.</div>`;
+                    details.innerHTML = `<div>${data.message}</div>`;
                     await refreshCommits();
                 } else {
                     header.innerHTML = '<span style="color:#f85149;">❌ PUSH REJECTED</span><button class="modal-close" onclick="closeModal(\'pushModal\')">×</button>';
@@ -286,15 +286,15 @@
                 const details = document.getElementById('pullDetails');
                 if (data.success) {
                     header.innerHTML = '<span style="color:#3fb950;">✅ PULL SUCCESSFUL</span><button class="modal-close" onclick="closeModal(\'pullModal\')">×</button>';
-                    details.innerHTML = `<div>${data.message}</div><div>Pulled ${data.pulled_count} new commits.</div>`;
+                    details.innerHTML = `<div>${data.message}</div>`;
                     await refreshCommits();
                 } else {
                     header.innerHTML = '<span style="color:#f85149;">❌ PULL FAILED</span><button class="modal-close" onclick="closeModal(\'pullModal\')">×</button>';
-                    let commitsHtml = '<div><strong>Invalid fetched commits:</strong></div>';
-                    data.commits.forEach(c => {
-                        commitsHtml += `<div class="detail-box"><strong>${escapeHtml(c.id)}</strong> - ${escapeHtml(c.msg)}<br><span style="color:#f85149;">Reason: ${c.reason || 'Invalid signature'}</span></div>`;
+                    let failedHtml = '<div><strong>Invalid remote commits:</strong></div>';
+                    data.failed.forEach(c => {
+                        failedHtml += `<div class="detail-box"><strong>${escapeHtml(c.id)}</strong> - ${escapeHtml(c.msg)}<br><span style="color:#f85149;">Reason: ${c.reason}</span></div>`;
                     });
-                    details.innerHTML = `<div>${data.message}</div>${commitsHtml}`;
+                    details.innerHTML = `<div>${data.message}</div>${failedHtml}`;
                 }
                 openModal('pullModal');
             } catch(err) {
@@ -323,7 +323,7 @@
                 const details = document.getElementById('mergeDetails');
                 if (data.success) {
                     header.innerHTML = '<span style="color:#3fb950;">✅ MERGE SUCCESSFUL</span><button class="modal-close" onclick="closeModal(\'mergeModal\')">×</button>';
-                    details.innerHTML = `<div>${data.message}</div><div>Merge commit: ${data.commit.id} - ${escapeHtml(data.commit.msg)}</div>`;
+                    details.innerHTML = `<div>${data.message}</div><div>Merge commit: ${data.commit.id}</div>`;
                     document.getElementById('mergeBranch').value = '';
                     await refreshCommits();
                 } else {

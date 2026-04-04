@@ -21,8 +21,8 @@ def verify_commit(commit_hash: bytes, signature: bytes) -> bool:
     with oqs.Signature("ML-DSA-65") as verifier:
         return verifier.verify(commit_hash, signature, PUBLIC_KEY)
 
-commits = []
-local_commits = []
+commits = []          # remote (pushed) commits
+local_commits = []    # local (unpushed) commits
 attacker_mode = False
 
 def compute_commit_hash(msg: str, files: str, parent_hash: str, timestamp: str) -> str:
@@ -49,12 +49,12 @@ def create_commit_object(msg: str, files: str, author: str = "You") -> dict:
         "signature": sig.hex(),
         "verified": verified
     }
-    # If attacker mode is ON, corrupt the signature (simulate MITM)
+    # If attacker mode is ON, corrupt the signature (flip first byte)
     if attacker_mode:
         sig_bytes = bytearray(sig)
         sig_bytes[0] ^= 0xFF
         commit['signature'] = bytes(sig_bytes).hex()
-        commit['verified'] = False  # mark as unverified
+        commit['verified'] = False
     return commit
 
 @app.route('/')
@@ -90,7 +90,6 @@ def commit_details(commit_id):
             recomputed = compute_commit_hash(c['msg'], c['files'], c.get('parent', ''), c['timestamp'])
             content_matches = (recomputed == c["full_hash"])
             is_verified = crypto_valid and content_matches
-            # Determine reason if not verified
             reason = None
             if not is_verified:
                 if not crypto_valid:
@@ -125,18 +124,16 @@ def commit():
 
     new = create_commit_object(msg, files)
     local_commits.append(new)
-    print(f"[*] New commit created: {new['id']} (attacker={attacker_mode}, verified={new['verified']})")
+    print(f"[*] New commit: {new['id']} (attacker={attacker_mode}, verified={new['verified']})")
     return jsonify(new), 201
 
 @app.route('/push', methods=['POST'])
 def push():
     global commits, local_commits
     if not local_commits:
-        return jsonify({"success": False, "message": "No local commits", "pushed_count": 0}), 200
+        return jsonify({"success": False, "message": "No local commits to push", "failed": []}), 200
 
-    # Verify each local commit before push
     failed = []
-    succeeded = []
     for c in local_commits:
         sig = bytes.fromhex(c["signature"])
         crypto_valid = verify_commit(bytes.fromhex(c["full_hash"]), sig)
@@ -146,63 +143,56 @@ def push():
         if not is_valid:
             reason = "Signature invalid (tampered)" if not crypto_valid else "Content mismatch"
             failed.append({"id": c['id'], "msg": c['msg'], "reason": reason})
-        else:
-            succeeded.append(c)
 
     if failed:
         return jsonify({
             "success": False,
             "message": f"Push rejected: {len(failed)} commit(s) failed verification",
-            "failed": failed,
-            "succeeded_count": len(succeeded)
+            "failed": failed
         }), 400
 
-    # Move all local commits to remote
+    # Move all local commits to remote (they are all valid)
     pushed_count = len(local_commits)
     for c in local_commits:
         remote_c = c.copy()
         remote_c["date"] = "2 hours ago"
         commits.append(remote_c)
     local_commits = []
-    print(f"[*] Pushed {pushed_count} commits")
     return jsonify({"success": True, "message": f"Pushed {pushed_count} commits", "pushed_count": pushed_count}), 200
 
 @app.route('/pull', methods=['POST'])
 def pull():
     global local_commits
     if not commits:
-        return jsonify({"success": False, "message": "No remote commits", "pulled_count": 0}), 200
+        return jsonify({"success": False, "message": "No remote commits to pull", "pulled_count": 0}), 200
 
-    pulled_commits = []
-    local_ids = {c["id"] for c in local_commits}
+    # Verify all remote commits
+    invalid = []
     for c in commits:
-        if c["id"] not in local_ids:
-            # Re-verify remote commit (should be valid)
-            sig = bytes.fromhex(c["signature"])
-            crypto_valid = verify_commit(bytes.fromhex(c["full_hash"]), sig)
-            recomputed = compute_commit_hash(c['msg'], c['files'], c.get('parent', ''), c['timestamp'])
-            content_matches = (recomputed == c["full_hash"])
-            is_valid = crypto_valid and content_matches
-            status = {
-                "id": c['id'],
-                "msg": c['msg'],
-                "valid": is_valid
-            }
-            if not is_valid:
-                status["reason"] = "Signature invalid (tampered)" if not crypto_valid else "Content mismatch"
-            pulled_commits.append(status)
-            if is_valid:
-                local_c = c.copy()
-                local_c["date"] = "just now"
-                local_commits.append(local_c)
+        sig = bytes.fromhex(c["signature"])
+        crypto_valid = verify_commit(bytes.fromhex(c["full_hash"]), sig)
+        recomputed = compute_commit_hash(c['msg'], c['files'], c.get('parent', ''), c['timestamp'])
+        content_matches = (recomputed == c["full_hash"])
+        if not (crypto_valid and content_matches):
+            reason = "Signature invalid" if not crypto_valid else "Content mismatch"
+            invalid.append({"id": c['id'], "msg": c['msg'], "reason": reason})
 
-    pulled_count = len([p for p in pulled_commits if p.get("valid", False)])
-    if any(not p.get("valid", True) for p in pulled_commits):
+    if invalid:
         return jsonify({
             "success": False,
             "message": "Pull failed: some remote commits are invalid",
-            "commits": pulled_commits
+            "failed": invalid
         }), 400
+
+    # All remote commits are valid – pull missing ones
+    pulled_count = 0
+    local_ids = {c["id"] for c in local_commits}
+    for c in commits:
+        if c["id"] not in local_ids:
+            local_c = c.copy()
+            local_c["date"] = "just now"
+            local_commits.append(local_c)
+            pulled_count += 1
 
     return jsonify({"success": True, "message": f"Pulled {pulled_count} commits", "pulled_count": pulled_count}), 200
 
@@ -214,7 +204,7 @@ def merge():
         return jsonify({"error": "Branch name required"}), 400
 
     merge_commit = create_commit_object(f"Merge branch '{branch}'", "Merge commit", "Merger")
-    # verify the merge commit (it may be tampered if attacker mode ON)
+    # Verify the merge commit (it may be tampered if attacker mode ON)
     sig = bytes.fromhex(merge_commit["signature"])
     crypto_valid = verify_commit(bytes.fromhex(merge_commit["full_hash"]), sig)
     recomputed = compute_commit_hash(merge_commit['msg'], merge_commit['files'], merge_commit.get('parent', ''), merge_commit['timestamp'])
