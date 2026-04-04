@@ -8,36 +8,45 @@ def main():
     if len(sys.argv) < 2:
         sys.exit(1)
     commit = sys.argv[1]
-    # Extract signature from commit message
-    out = subprocess.run(["git", "show", "--format=%GG", "-s", commit], capture_output=True, text=True)
-    sig_text = out.stdout.strip()
-    if "-----BEGIN PGP SIGNATURE-----" not in sig_text:
-        print(f"❌ Commit {commit[:7]} has no PQC signature")
-        sys.exit(1)
-    lines = sig_text.splitlines()
-    sig_b64 = ""
+
+    # Get the commit message
+    msg = subprocess.check_output(["git", "log", "-1", "--format=%B", commit], text=True)
+
+    # Extract the signature block
+    lines = msg.splitlines()
+    original = []
+    sig_b64 = None
     in_sig = False
     for line in lines:
-        if "BEGIN PGP SIGNATURE" in line:
+        if "-----BEGIN PGP SIGNATURE-----" in line:
             in_sig = True
             continue
-        if "END PGP SIGNATURE" in line:
+        if "-----END PGP SIGNATURE-----" in line:
             break
         if in_sig:
-            sig_b64 += line.strip()
-    signature = base64.b64decode(sig_b64)
-    # Get original commit message (without signature)
-    msg = subprocess.check_output(["git", "log", "-1", "--format=%B", commit], text=True)
-    orig_lines = []
-    for line in msg.splitlines():
-        if "-----BEGIN PGP SIGNATURE-----" in line:
-            break
-        orig_lines.append(line)
-    original_msg = "\n".join(orig_lines).strip()
+            sig_b64 = line.strip()
+        else:
+            original.append(line)
+
+    original_msg = "\n".join(original).strip()
+    if not sig_b64:
+        print(f"❌ Commit {commit[:7]} has no PQC signature")
+        sys.exit(1)
+
+    try:
+        signature = base64.b64decode(sig_b64)
+    except Exception as e:
+        print(f"❌ Commit {commit[:7]} invalid signature base64: {e}")
+        sys.exit(1)
+
+    # Load public key
     with open(PUBLIC_KEY_FILE, "rb") as f:
         pub = f.read()
+
+    # Verify
     with oqs.Signature("ML-DSA-65") as v:
         valid = v.verify(original_msg.encode(), signature, pub)
+
     if valid:
         print(f"✅ Commit {commit[:7]} signature VALID")
         sys.exit(0)
